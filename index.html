@@ -244,7 +244,7 @@ footer{background:var(--bark);color:var(--mist);padding:56px 72px 28px}
     <li><a href="#contact">Contact</a></li>
   </ul>
   <div class="nav-right">
-    <button class="btn-admin" onclick="openAdmin()">⚙️ Gérer</button>
+    <button class="btn-admin" onclick="checkAdminPassword()">⚙️ Gérer</button>
     <button class="nav-cart" onclick="togglePanier()">
       🧺 Panier <span class="cart-badge" id="cartBadge">0</span>
     </button>
@@ -403,6 +403,23 @@ footer{background:var(--bark);color:var(--mist);padding:56px 72px 28px}
 </div>
 
 <!-- ADMIN PANEL -->
+<!-- MOT DE PASSE MODAL -->
+<div class="modal-overlay" id="passwordModal" onclick="if(event.target===this){this.classList.remove('active');document.getElementById('passwordError').style.display='none'}">
+  <div style="background:var(--cream);width:320px;border-radius:4px;overflow:hidden;margin:auto;margin-top:30vh">
+    <div style="background:var(--moss);color:var(--cream);padding:20px 24px">
+      <h3 style="font-family:'Cormorant Garamond',serif;font-size:1.3rem;font-weight:300">🔒 Espace Florence</h3>
+    </div>
+    <div style="padding:28px">
+      <p style="font-size:.82rem;opacity:.6;margin-bottom:16px">Entrez votre mot de passe pour accéder à la gestion du site.</p>
+      <input type="password" id="passwordInput" placeholder="Mot de passe"
+        onkeydown="if(event.key==='Enter')submitPassword()"
+        style="width:100%;padding:13px 15px;border:1px solid var(--mist);border-radius:2px;font-family:'Jost',sans-serif;font-size:.95rem;outline:none;margin-bottom:8px;background:#fff">
+      <p id="passwordError" style="display:none;color:#C47A7A;font-size:.8rem;margin-bottom:12px">❌ Mot de passe incorrect</p>
+      <button onclick="submitPassword()" class="btn-primary" style="width:100%;padding:14px">Entrer</button>
+    </div>
+  </div>
+</div>
+
 <div class="admin-overlay" id="adminOverlay" onclick="if(event.target===this)closeAdmin()">
   <div class="admin-panel">
     <div class="admin-header">
@@ -664,13 +681,52 @@ function changeQty(id,d){
   panier[i].qty+=d; if(panier[i].qty<=0) panier.splice(i,1);
   updateBadge(); renderPanier();
 }
-function commander(){
-  showToast('✨ Commande confirmée ! Merci 🌿');
-  setTimeout(()=>{panier=[];updateBadge();renderPanier();togglePanier();},1500);
+async function commander(){
+  if(!panier.length) return;
+  const total = panier.reduce((s,x)=>s+x.prix*x.qty,0);
+  const lignes = panier.map(x=>`- ${x.nom} x${x.qty} = ${x.prix*x.qty}€`).join('\n');
+  showToast('⏳ Envoi de la commande…');
+  try {
+    const res = await fetch('https://formspree.io/florence.antzak@hotmail.fr', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        _subject: '🛒 Nouvelle commande panier - ' + total + '€',
+        Type: 'Commande panier',
+        Produits: lignes,
+        Total: total + ' €',
+        Note: 'Client à recontacter pour paiement et livraison'
+      })
+    });
+    if(res.ok) {
+      showToast('🎉 Commande envoyée à Florence !');
+      setTimeout(()=>{panier=[];updateBadge();renderPanier();togglePanier();},1500);
+    } else { throw new Error(); }
+  } catch(e) {
+    showToast('⚠️ Erreur, réessayez');
+  }
 }
 function togglePanier(){ document.getElementById('panierModal').classList.toggle('active'); }
 
 // ── ADMIN ──
+function checkAdminPassword() {
+  const modal = document.getElementById('passwordModal');
+  modal.classList.add('active');
+  setTimeout(()=>document.getElementById('passwordInput').focus(), 100);
+}
+function submitPassword() {
+  const val = document.getElementById('passwordInput').value;
+  if(val === '120912') {
+    document.getElementById('passwordModal').classList.remove('active');
+    document.getElementById('passwordInput').value = '';
+    document.getElementById('passwordError').style.display = 'none';
+    openAdmin();
+  } else {
+    document.getElementById('passwordError').style.display = 'block';
+    document.getElementById('passwordInput').value = '';
+    document.getElementById('passwordInput').focus();
+  }
+}
 function openAdmin(){ document.getElementById('adminOverlay').classList.add('active'); renderAdminListe(); }
 function closeAdmin(){ document.getElementById('adminOverlay').classList.remove('active'); }
 function switchTab(t){
